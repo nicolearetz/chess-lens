@@ -4,6 +4,9 @@ sys.path.insert(0, '../images')
 
 import imageio as iio
 import matplotlib.pyplot as plt
+import cv2
 
 import numpy as np
 
+import time
+tStart_notebook = time.time()
