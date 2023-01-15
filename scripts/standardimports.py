@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import cv2
 
 import numpy as np
+import scipy.linalg as la
 
 import time
 tStart_notebook = time.time()
