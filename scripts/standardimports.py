@@ -11,3 +11,6 @@ import scipy.linalg as la
 
 import time
 tStart_notebook = time.time()
+
+import ChessImage
+import ChessLens
