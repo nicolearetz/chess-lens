@@ -58,7 +58,7 @@ class ChessLens():
         else:
             print("called ChessLens.plot with invalid argument for which_image: {}".format(which_image))
 
-    def crop_to_physical(self, min_pixels=2):
+    def crop_to_physical(self, min_pixels=2, bool_set_active=True):
         """successively crops the active image until no rows or columns are left with less than min_pixels"""
 
         if self.img_active != self.img_canny:
@@ -81,10 +81,13 @@ class ChessLens():
                                                                max_reduction=reduction)
             img, bool_cut_bottom = self.restrict_image_from_side(img, axis=1, direction=-1, min_pixels=min_pixels,
                                                               max_reduction=reduction)
-            reduction /= 2
+            reduction /= 2  # shrink how much we allow to be cut off to avoid cutting off the board
 
-        self.img_cropped_to_physical = ChessImage(img * 255, type="physical", parent_image=self.img_canny)
-        return self.img_cropped_to_physical
+        new_image = ChessImage(img * 255, type="physical", parent_image=self.img_canny)
+        self.img_cropped_to_physical = new_image
+        if bool_set_active:
+            self.img_active = new_image
+        return new_image
 
     def restrict_image_from_side(self, img, axis, direction, min_pixels=2, max_reduction=0.1):
         """
@@ -149,5 +152,32 @@ class ChessLens():
         else:
             # cutting from top or bottom
             return img[start:stop, :], True
+
+    def is_top_down(self):
+
+        if self.img_active != self.img_cropped_to_physical:
+            raise RuntimeError("active image is not cropped to the physical board")
+
+        bottom_row = self.img_active.img[:, -1] / 255
+        bottom_nonzeros = np.where(bottom_row > 0)[0]
+        bottom_left = np.min(bottom_nonzeros)
+        bottom_right = np.max(bottom_nonzeros)
+
+        if bottom_right - bottom_left > 0.2 * bottom_row.shape[0]:
+            print("Rightmost and leftmost pixels on bottom row are far apart")
+            return True
+
+        left_column = self.img_active.img[0, :] / 255
+        left_nonzeros = np.where(left_column > 0)[0]
+        left_top = np.min(left_nonzeros)
+        left_bottom = np.max(left_nonzeros)
+
+        if left_bottom - left_top > 0.2 * left_column.shape[0]:
+            print("Topmost and bottommost pixels on left side are far apart")
+            return True
+
+        # todo: look at the bottom-left triangle
+
+        return False
 
 
