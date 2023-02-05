@@ -14,6 +14,8 @@ class ChessImage():
         Possible image types:
         - "original"
 
+        todo: set outside bounds when image is in color?
+
         :param img:  numpy.ndarray
         :param type:  string
         :param uncropped: ChessImage
@@ -26,8 +28,37 @@ class ChessImage():
 
         if len(img.shape) == 3:
             __, self.rows, self.cols = img.shape  # dimensions of the image
+            self.outside_bounds = None  # no use for outside bounds yet when image is in color
         else:
             self.rows, self.cols = img.shape  # dimensions of the image
+            self.outside_bounds = self.find_outside_bounds()
+
+        self.descriptors = {} if parent_image is None else parent_image.descriptors.copy()
+
+    def set_key(self, key, val):
+        """
+        gives the ChessImage.descriptors dictionary the provided key <key> with the provided value <val>. If
+        key is already present, a warning is printed (not raised) and the old value is replaced.
+
+        todo: decide if we should raise a warning if key is changed
+
+        :param key: string
+        :param val:
+        :return: no return
+        """
+        if key in self.descriptors.keys():
+            print("Replacing ChessImage.descriptors key {} from value {} to value {}".format(key, self.descriptors[key], val))
+        self.descriptors[key] = val
+
+    def get_key(self, key, default=None):
+        """
+        provides the value of key <key> if present in self.descriptors. Returns provided default value if None is found.
+
+        :param key: string
+        :param default: default value to be returned if key <key> does not exist
+        :return:
+        """
+        return self.descriptors.get(key, default)
 
     def vals_along_line(self, val_start, val_stop, f_start, f_stop):
         """
@@ -158,6 +189,7 @@ class ChessImage():
         img_gray = cv2.cvtColor(self.img, cv2.COLOR_BGR2GRAY)
         new_chess_image = ChessImage(img_gray, type="grayscale", parent_image=self)
         self.child_images.append(new_chess_image)
+        new_chess_image.set_key("is_grayscale", True)
         return new_chess_image
 
     def to_blurred(self):
@@ -186,4 +218,56 @@ class ChessImage():
         canny = cv2.Canny(image=self.img, threshold1=canny_lower, threshold2=canny_upper)
         new_chess_image = ChessImage(canny, type="grayscale", parent_image=self)
         self.child_images.append(new_chess_image)
+        new_chess_image.set_key("has_canny_outlines", True)
         return new_chess_image
+
+    def find_outside_bounds(self, buffer = 0):
+        """
+        identifies the extremal non-zero pixel positions at each side of the image, i.e. the left-most and the right-most
+        non-zero pixels on the bottom and the top row, and the top-most and bottom-most non-zero pixels on the left and
+        right columns. Returns the first and last pixel on each side if the side contains only zeros.
+
+        Returns dictionary with keys:
+        left_bot, left_top, right_bot, right_top for extremal pixels on the left and right sides
+        bottom_left, bottom_right, top_left, top_right for extremal pixels on the top and bottom sides
+
+        :return: dictionary
+        """
+        outside_bounds = {}
+        outside_bounds["left_top"], outside_bounds["left_bot"] = self.find_bounds(self.img[:, 0+buffer])  # left column
+        outside_bounds["right_top"], outside_bounds["right_bot"] = self.find_bounds(self.img[:, -1-buffer])  # right column
+        outside_bounds["bottom_left"], outside_bounds["bottom_right"] = self.find_bounds(self.img[-1-buffer, :])  # bottom row
+        outside_bounds["top_left"], outside_bounds["top_right"] = self.find_bounds(self.img[0+buffer, :])  # top row
+        return outside_bounds
+
+
+    def find_bounds(self, line, bool_outside_points_if_all_zero = True):
+        """
+        Identifies the indices of the first and last non-zero pixels on the provided line. Returns the indices of the
+        first and last zero pixel if line contains zeros only (by default). Can return Nones if variable
+        <bool_outside_points_if_all_zero> set to False.
+
+        Line must be one-dimensional, and contain only values >= 0.
+
+        :param line: array
+        :return: int, int
+        """
+
+        if len(line.shape) > 1:
+            raise RuntimeError("In ChessImage.find_bounds: invalid line encountered: line shape {} (not 1-dimensional)".format(line.shape))
+
+        if min(line) < 0:
+            raise RuntimeError("In ChessImage.find_bounds: invalid line encountered: minimum value {} < 0".format(min(line)))
+
+        nonzeros = np.where(line > 0)[0]
+        if nonzeros.shape[0] == 0:
+            if bool_outside_points_if_all_zero:
+                return 0, line.shape[0]-1
+            return None, None
+
+        first = np.min(nonzeros)
+        last = np.max(nonzeros)
+        return first, last
+
+
+
